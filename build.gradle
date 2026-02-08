@@ -29,3 +29,102 @@ dependencies {
     implementation 'org.mariadb.jdbc:mariadb-java-client'
     implementation 'org.springframework.boot:spring-boot-starter-security'
 }
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import java.security.MessageDigest
+
+def frontDir = file("../woody-service-front")
+def frontBuildDir = file("../woody-service-front/build")
+def backendStaticDir = file("src/main/resources/static/reservation")
+
+def nodeModulesDir = file("../woody-service-front/node_modules")
+def lockFile = file("../woody-service-front/package-lock.json")
+def lockHashFile = file("../woody-service-front/.cache/package-lock.sha256")
+
+def skipFront = project.hasProperty("skipFront") && project.property("skipFront").toString().toBoolean()
+
+static String sha256(File f) {
+    MessageDigest md = MessageDigest.getInstance("SHA-256")
+    f.withInputStream { is ->
+        byte[] buf = new byte[8192]
+        int r
+        while ((r = is.read(buf)) > 0) md.update(buf, 0, r)
+    }
+    return md.digest().collect { String.format("%02x", it) }.join()
+}
+
+def needsNpmCi = {
+    if (!lockFile.exists()) return true
+    def newHash = sha256(lockFile)
+
+    if (!nodeModulesDir.exists()) return true
+    if (!lockHashFile.exists()) return true
+
+    def oldHash = lockHashFile.text.trim()
+    return oldHash != newHash
+}
+
+tasks.named("jar") {
+    enabled = false
+}
+
+tasks.register("frontNpmCi", Exec) {
+    onlyIf { !skipFront && needsNpmCi() }
+
+    workingDir frontDir
+    commandLine(Os.isFamily(Os.FAMILY_WINDOWS)
+            ? ["cmd", "/c", "npm ci"]
+            : ["bash", "-lc", "npm ci"])
+
+    doFirst {
+        def cacheDir = file("../woody-service-front/.cache")
+        cacheDir.mkdirs()
+        println("[front] running npm ci (node_modules missing OR lock changed OR cache missing)")
+    }
+    doLast {
+        // 설치 성공하면 lock hash 저장
+        lockHashFile.parentFile.mkdirs()
+        lockHashFile.text = sha256(lockFile)
+        println("[front] wrote lock hash -> ${lockHashFile}")
+    }
+}
+
+tasks.register("frontNpmCiSkipNote") {
+    onlyIf { !skipFront && !needsNpmCi() }
+    doLast {
+        println("[front] npm dependencies unchanged -> skip npm ci")
+    }
+}
+
+tasks.register("frontBuild", Exec) {
+    onlyIf { !skipFront }
+    dependsOn("frontNpmCi", "frontNpmCiSkipNote")
+    workingDir frontDir
+
+    commandLine(Os.isFamily(Os.FAMILY_WINDOWS)
+            ? ["cmd", "/c", "set PUBLIC_URL=/reservation&& npm run build"]
+            : ["bash", "-lc", "PUBLIC_URL=/reservation npm run build"])
+
+    inputs.dir(file("../woody-service-front/src"))
+    inputs.file(file("../woody-service-front/package.json"))
+    inputs.file(lockFile)
+    outputs.dir(frontBuildDir)
+}
+
+tasks.register("cleanBackendFront", Delete) {
+    onlyIf { !skipFront }
+    delete backendStaticDir
+}
+
+tasks.register("copyFrontToBackend", Copy) {
+    onlyIf { !skipFront }
+    dependsOn("frontBuild", "cleanBackendFront")
+    from(frontBuildDir)
+    into(backendStaticDir)
+}
+
+tasks.named("processResources") {
+    if (!skipFront) {
+        dependsOn("copyFrontToBackend")
+    }
+}

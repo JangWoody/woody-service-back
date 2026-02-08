@@ -28,7 +28,7 @@ public class JangWoodyBatchScheduler {
 		runDailyBatch();
 	}
 
-	@Scheduled(cron = "0 10 0 * * ?")
+	@Scheduled(cron = "0 10 0 * * ?", zone = "Asia/Seoul")
 	public void runDailyBatch() {
 		log.info("Holiday batch started");
 		try {

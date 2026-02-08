@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class WebController {
 
-    @GetMapping({"/reservation", "/reservation/{path:[^\\.]*}", "/reservation/**/{path:[^\\.]*}"})
-    public String forward() {
+    @GetMapping({"/reservation", "/reservation/"})
+    public String reservationEntry() {
         return "forward:/reservation/index.html";
     }
 }
