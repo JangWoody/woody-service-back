@@ -2,8 +2,11 @@ package com.restapi.controller;
 
 import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -43,8 +46,23 @@ public class JangWoodyController {
 
 	private final JangWoodyService jangWoodyService;
 
+	@Value("${woody.download.dir:/opt/woody/downloads}")
+	private String downloadDir;
+
+	private Path resolveDownloadPath(String fileName) {
+    	return Paths.get(downloadDir).resolve(fileName).normalize();
+	}
+
 	public JangWoodyController(JangWoodyService jangWoodyService) {
 		this.jangWoodyService = jangWoodyService;
+	}
+
+	private String getClientIp(HttpServletRequest request) {
+	    String xff = request.getHeader("X-Forwarded-For");
+	    if (xff != null && !xff.isBlank()) {
+	        return xff.split(",")[0].trim();
+	    }
+	    return request.getRemoteAddr();
 	}
 
 	@GetMapping(value = "/download", produces = MediaType.TEXT_HTML_VALUE)
@@ -83,34 +101,41 @@ public class JangWoodyController {
 	}
 
 	@GetMapping("/DT_Gen")
-	public ResponseEntity<UrlResource> getDtGen(HttpServletRequest request) throws MalformedURLException {
-		return createDownloadResponse(request, "DT_Gen", "C:\\FTP\\DT_Generator.zip");
+	public ResponseEntity<?> getDtGen(HttpServletRequest request) throws MalformedURLException {
+		return createDownloadResponse(request, "DT_Gen", resolveDownloadPath("DT_Generator.zip"));
 	}
 
 	@GetMapping("/ChannelSchdMgr")
-	public ResponseEntity<UrlResource> getChannelScheduleManager(HttpServletRequest request)
-			throws MalformedURLException {
-		return createDownloadResponse(request, "ChannelSchdMgr", "C:\\FTP\\ChannelScheduleManager.zip");
+	public ResponseEntity<?> getChannelScheduleManager(HttpServletRequest request) throws MalformedURLException {
+	    return createDownloadResponse(request, "ChannelSchdMgr", resolveDownloadPath("ChannelScheduleManager.zip"));
 	}
 
 	@GetMapping("/CCInfo")
-	public ResponseEntity<UrlResource> getCCInformation(HttpServletRequest request) throws MalformedURLException {
-		return createDownloadResponse(request, "CCInfo", "C:\\FTP\\ShowCCInformation.zip");
+	public ResponseEntity<?> getCCInformation(HttpServletRequest request) throws MalformedURLException {
+		return createDownloadResponse(request, "CCInfo", resolveDownloadPath("ShowCCInformation.zip"));
 	}
 
 	@GetMapping("/XSDGenerator")
-	public ResponseEntity<UrlResource> getXSDGenerator(HttpServletRequest request) throws MalformedURLException {
-		return createDownloadResponse(request, "XSDGenerator", "C:\\FTP\\XSDGenerator.zip");
+	public ResponseEntity<?> getXSDGenerator(HttpServletRequest request) throws MalformedURLException {
+		return createDownloadResponse(request, "XSDGenerator", resolveDownloadPath("XSDGenerator.zip"));
 	}
 
-	private ResponseEntity<UrlResource> createDownloadResponse(HttpServletRequest request, String serviceName,
-			String filePath) throws MalformedURLException {
-		jangWoodyService.callIPandService(serviceName, request.getRemoteAddr() + "\t" + request.getRemoteHost());
+	private ResponseEntity<?> createDownloadResponse(HttpServletRequest request, String serviceName, Path filePath)
+	        throws MalformedURLException {
 
-		UrlResource resource = new UrlResource("file:" + filePath);
-		String encodedUploadFileName = UriUtils.encode(Paths.get(filePath).getFileName().toString(),
-				StandardCharsets.UTF_8);
-		String contentDisposition = "attachment; filename=\"" + encodedUploadFileName + "\"";
-		return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition).body(resource);
+	    jangWoodyService.callIPandService(serviceName, getClientIp(request) + "\t" + request.getRemoteHost());
+
+	    if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+	        return ResponseEntity.status(404).body("File not found: " + filePath.getFileName());
+	    }
+
+	    UrlResource resource = new UrlResource(filePath.toUri());
+
+	    String encodedFileName = UriUtils.encode(filePath.getFileName().toString(), StandardCharsets.UTF_8);
+	    String contentDisposition = "attachment; filename=\"" + encodedFileName + "\"";
+
+	    return ResponseEntity.ok()
+	            .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
+	            .body(resource);
 	}
 }

@@ -18,6 +18,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -47,13 +48,19 @@ public class JangWoodyService {
 	private static final int WEATHER_DATA_ROW_COUNT = 300;
 	private static final int WEATHER_API_RETRY_LIMIT = 5;
 
+	@Value("${app.holiday.service-key:}")
+	private String holidayServiceKey;
+
 	public String getHolidayInfo() {
 		String holiday = HOLIDAY_NO;
 		LocalDate now = LocalDate.now();
 		String formatedNow = now.format(DATE_COMPACT);
-		String encodedServiceKey = "tOOuqT4L3Dil4jLLct1gYYqmTI%2BMdLuXcBy9KBp2nkxF2DX2bLg40SVhoU106AYwAoP3CZWdqlSxRp6yG1GKLw%3D%3D";
+		if (holidayServiceKey == null || holidayServiceKey.isEmpty()) {
+			log.warn("Holiday service key is not configured.");
+			return holiday;
+		}
 		String apiUrl = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey="
-				+ encodedServiceKey + "&_type=json&numOfRows=20&solYear=" + formatedNow.substring(0, 4) + "&solMonth="
+				+ holidayServiceKey + "&_type=json&numOfRows=20&solYear=" + formatedNow.substring(0, 4) + "&solMonth="
 				+ formatedNow.substring(4, 6);
 		try {
 			log.info("Try to get holiday info : {}", apiUrl);
