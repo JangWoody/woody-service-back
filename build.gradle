@@ -102,8 +102,8 @@ tasks.register("frontBuild", Exec) {
     workingDir frontDir
 
     commandLine(Os.isFamily(Os.FAMILY_WINDOWS)
-            ? ["cmd", "/c", "set PUBLIC_URL=/reservation&& npm run build"]
-            : ["bash", "-lc", "PUBLIC_URL=/reservation npm run build"])
+            ? ["cmd", "/c", "set PUBLIC_URL=/reservation&& set GENERATE_SOURCEMAP=false&& npm run build"]
+            : ["bash", "-lc", "PUBLIC_URL=/reservation GENERATE_SOURCEMAP=false npm run build"])
 
     inputs.dir(file("../woody-service-front/src"))
     inputs.file(file("../woody-service-front/package.json"))

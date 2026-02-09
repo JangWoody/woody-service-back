@@ -20,6 +20,8 @@ import com.restapi.entity.StudentEntity;
 import com.restapi.service.CredentialCryptoService;
 import com.restapi.service.TutoringService;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -28,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class ApiController {
 
     private static final Logger log = LoggerFactory.getLogger(ApiController.class);
+    private static final String TEACHER_AUTH_SESSION_KEY = "teacherAuth";
     private final TutoringService service;
     private final CredentialCryptoService credentialCryptoService;
 
@@ -45,15 +48,24 @@ public class ApiController {
     }
 
     @PostMapping("/students")
-    public StudentEntity addStudent(@RequestBody Map<String, String> body) {
+    public ResponseEntity<StudentEntity> addStudent(
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
+        if (!isTeacherAuthenticated(request)) {
+            return ResponseEntity.status(403).build();
+        }
         log.info("post students called: {}", body.get("name"));
-        return service.addStudent(body.get("name"));
+        return ResponseEntity.ok(service.addStudent(body.get("name")));
     }
 
     @DeleteMapping("/students/{id}")
-    public void deleteStudent(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteStudent(@PathVariable Long id, HttpServletRequest request) {
+        if (!isTeacherAuthenticated(request)) {
+            return ResponseEntity.status(403).build();
+        }
         log.info("delete students called: {}", id);
         service.deleteStudent(id);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/schedules")
@@ -75,13 +87,17 @@ public class ApiController {
     }
 
     @PostMapping("/schedules/{id}/confirm")
-    public void confirmSchedule(@PathVariable Long id) {
+    public ResponseEntity<Void> confirmSchedule(@PathVariable Long id, HttpServletRequest request) {
+        if (!isTeacherAuthenticated(request)) {
+            return ResponseEntity.status(403).build();
+        }
         log.info("confirm schedules called: {}", id);
         service.confirmSchedule(id);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Boolean> login(@RequestBody Map<String, String> body) {
+    public ResponseEntity<Boolean> login(@RequestBody Map<String, String> body, HttpServletRequest request) {
         log.info("login called");
 
         String password = resolveSecret(
@@ -93,11 +109,32 @@ public class ApiController {
         }
 
         boolean ok = service.checkPassword(password);
-        return ok ? ResponseEntity.ok(true) : ResponseEntity.status(401).body(false);
+        if (ok) {
+            HttpSession session = request.getSession(true);
+            request.changeSessionId();
+            session.setAttribute(TEACHER_AUTH_SESSION_KEY, true);
+            return ResponseEntity.ok(true);
+        }
+        clearTeacherSession(request);
+        return ResponseEntity.status(401).body(false);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest request) {
+        clearTeacherSession(request);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/teacher/session")
+    public ResponseEntity<Map<String, Boolean>> teacherSession(HttpServletRequest request) {
+        return ResponseEntity.ok(Map.of("ok", isTeacherAuthenticated(request)));
     }
 
     @PostMapping("/password")
-    public ResponseEntity<Void> changePassword(@RequestBody Map<String, String> body) {
+    public ResponseEntity<Void> changePassword(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        if (!isTeacherAuthenticated(request)) {
+            return ResponseEntity.status(403).build();
+        }
         log.info("change password called");
 
         String newPassword = resolveSecret(
@@ -110,6 +147,18 @@ public class ApiController {
 
         service.changePassword(newPassword);
         return ResponseEntity.ok().build();
+    }
+
+    private boolean isTeacherAuthenticated(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        return session != null && Boolean.TRUE.equals(session.getAttribute(TEACHER_AUTH_SESSION_KEY));
+    }
+
+    private void clearTeacherSession(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
     }
 
     private String resolveSecret(
