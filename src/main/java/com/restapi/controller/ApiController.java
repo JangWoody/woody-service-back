@@ -2,6 +2,7 @@ package com.restapi.controller;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.restapi.entity.ScheduleEntity;
 import com.restapi.entity.StudentEntity;
+import com.restapi.service.CredentialCryptoService;
 import com.restapi.service.TutoringService;
 
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,14 @@ public class ApiController {
 
     private static final Logger log = LoggerFactory.getLogger(ApiController.class);
     private final TutoringService service;
+    private final CredentialCryptoService credentialCryptoService;
+
+    @GetMapping("/login/public-key")
+    public ResponseEntity<Map<String, String>> getLoginPublicKey() {
+        return ResponseEntity.ok(Map.of(
+                "alg", "RSA-OAEP-256",
+                "publicKeyPem", credentialCryptoService.getPublicKeyPem()));
+    }
 
     @GetMapping("/students")
     public List<StudentEntity> getStudents() {
@@ -74,15 +84,14 @@ public class ApiController {
     public ResponseEntity<Boolean> login(@RequestBody Map<String, String> body) {
         log.info("login called");
 
-        String password = body.get("secretKey");
-        if (password == null || password.isBlank()) {
-            password = body.get("password");
-        }
+        String password = resolveSecret(
+                body,
+                List.of("secretKeyEncrypted", "passwordEncrypted"),
+                List.of("secretKey", "password"));
         if (password == null || password.isBlank()) {
             return ResponseEntity.badRequest().body(false);
         }
 
-        log.info("password received: {}", password.replaceAll(".", "*"));
         boolean ok = service.checkPassword(password);
         return ok ? ResponseEntity.ok(true) : ResponseEntity.status(401).body(false);
     }
@@ -91,15 +100,42 @@ public class ApiController {
     public ResponseEntity<Void> changePassword(@RequestBody Map<String, String> body) {
         log.info("change password called");
 
-        String newPassword = body.get("secretKey");
-        if (newPassword == null || newPassword.isBlank()) {
-            newPassword = body.get("newPassword");
-        }
+        String newPassword = resolveSecret(
+                body,
+                List.of("newPasswordEncrypted", "secretKeyEncrypted"),
+                List.of("secretKey", "newPassword"));
         if (newPassword == null || newPassword.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
 
         service.changePassword(newPassword);
         return ResponseEntity.ok().build();
+    }
+
+    private String resolveSecret(
+            Map<String, String> body,
+            List<String> encryptedKeys,
+            List<String> plainKeys) {
+
+        String encrypted = firstNonBlank(body, encryptedKeys);
+        if (encrypted != null) {
+            try {
+                return credentialCryptoService.decryptBase64(encrypted);
+            } catch (IllegalArgumentException e) {
+                log.warn("Failed to decrypt credential payload.");
+                return null;
+            }
+        }
+        return firstNonBlank(body, plainKeys);
+    }
+
+    private String firstNonBlank(Map<String, String> body, List<String> keys) {
+        return keys.stream()
+                .map(body::get)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(v -> !v.isEmpty())
+                .findFirst()
+                .orElse(null);
     }
 }
