@@ -24,18 +24,14 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            // 1. CSRF 보호 비활성화 (API 서버 필수 설정)
-            .csrf(csrf -> csrf.disable()) 
-            // 2. CORS 허용
+        http.csrf(csrf -> csrf.disable()) 
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            // 3. 모든 요청에 대해 인증 없이 접근 허용 (로그인 로직은 서비스에서 처리)
             .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
             
         return http.build();
     }
     
-    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    @Value("${app.cors.allowed-origins:http://localhost:3000,https://jangwoody.com,https://www.jangwoody.com}")
     private String allowedOrigins;
 
     @Bean

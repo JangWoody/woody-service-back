@@ -8,6 +8,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,7 @@ public class TutoringService {
     private final TeacherRepository teacherRepository;
     private final StudentRepository studentRepository;
     private final PasswordEncoder passwordEncoder;
+    private static final Logger log = LoggerFactory.getLogger(JangWoodyService.class);
 
     private void validateFutureTime(LocalDate date, String timeStr) {
         LocalTime time = LocalTime.parse(timeStr, DateTimeFormatter.ofPattern("H:mm"));
@@ -114,6 +117,7 @@ public class TutoringService {
     }
 
     public boolean checkPassword(String rawPassword) {
+        log.info("login check: {}", "processing");
         initTeacher();
         TeacherEntity teacher = teacherRepository.findByUsername("teacher").orElseThrow();
         return passwordEncoder.matches(rawPassword, teacher.getPassword());
