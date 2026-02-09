@@ -54,11 +54,7 @@ public class ApiController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
-        String password = body.get("pw");
-        if (password == null || password.isBlank()) {
-            password = body.get("password");
-        }
-
+        String password = body.get("secretKey");
         if (password == null || password.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of(
                 "ok", false,
@@ -76,5 +72,5 @@ public class ApiController {
    }
 
     @PostMapping("/password")
-    public void changePassword(@RequestBody Map<String, String> body) { service.changePassword(body.get("newPassword")); }
+    public void changePassword(@RequestBody Map<String, String> body) { service.changePassword(body.get("secretKey")); }
 }
