@@ -109,6 +109,7 @@ tasks.register("frontBuild", Exec) {
     inputs.file(file("../woody-service-front/package.json"))
     inputs.file(lockFile)
     outputs.dir(frontBuildDir)
+    outputs.upToDateWhen { false }
 }
 
 tasks.register("cleanBackendFront", Delete) {
@@ -121,6 +122,7 @@ tasks.register("copyFrontToBackend", Copy) {
     dependsOn("frontBuild", "cleanBackendFront")
     from(frontBuildDir)
     into(backendStaticDir)
+    outputs.upToDateWhen { false }
 }
 
 tasks.named("processResources") {

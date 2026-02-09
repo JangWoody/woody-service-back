@@ -87,7 +87,7 @@ public class ApiController {
         String password = resolveSecret(
                 body,
                 List.of("secretKeyEncrypted", "passwordEncrypted"),
-                List.of("secretKey", "password"));
+                List.of());
         if (password == null || password.isBlank()) {
             return ResponseEntity.badRequest().body(false);
         }
@@ -103,7 +103,7 @@ public class ApiController {
         String newPassword = resolveSecret(
                 body,
                 List.of("newPasswordEncrypted", "secretKeyEncrypted"),
-                List.of("secretKey", "newPassword"));
+                List.of());
         if (newPassword == null || newPassword.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
